@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>幾何拼圖挑戰</title>
+<title>精確版：幾何三角拼圖挑戰</title>
 <style>
   body {
     display: flex;
@@ -11,42 +11,27 @@
     align-items: center;
     background-color: #f8f9fa;
     font-family: sans-serif;
-    touch-action: none; /* 防止手機端拖曳時觸發螢幕滾動 */
+    touch-action: none; /* 防止手機拖曳時畫面滾動 */
+    margin: 0;
+    padding: 10px;
   }
   
   #board {
     position: relative;
-    width: 600px;
-    height: 600px;
+    width: 100%;
+    max-width: 600px;
+    height: 70vh;
     background-color: #ffffff;
     border: 2px dashed #adb5bd;
     border-radius: 8px;
-    margin-top: 20px;
+    margin-top: 15px;
     overflow: hidden;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-  }
-
-  /* 提示底圖區域 (概略位置) */
-  #silhouette-hint {
-    position: absolute;
-    width: 300px;
-    height: 300px;
-    top: 150px;
-    left: 150px;
-    border: 1px solid #e9ecef;
-    background-color: #f1f3f5;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ced4da;
-    z-index: 0;
   }
 
   .piece {
     position: absolute;
     cursor: grab;
-    filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
     transition: transform 0.1s;
     z-index: 10;
   }
@@ -56,102 +41,115 @@
     transform: scale(1.05);
   }
 
-  /* 藍色頭部 (梯形) */
-  #piece-blue {
-    width: 120px; height: 69px;
-    background: linear-gradient(135deg, #5ab9ea, #3b8d99);
-    clip-path: polygon(25% 0%, 75% 0%, 100% 100%, 0% 100%);
-    top: 30px; left: 30px;
-  }
-
-  /* 黃色頸部 (平行四邊形) */
-  #piece-yellow {
-    width: 160px; height: 69px;
-    background: linear-gradient(135deg, #ffde59, #e8b923);
-    clip-path: polygon(25% 0%, 100% 0%, 75% 100%, 0% 100%);
-    top: 120px; left: 30px;
-  }
-
-  /* 紅色主體 (正六邊形) */
-  #piece-red {
-    width: 120px; height: 104px;
-    background: linear-gradient(135deg, #ff5e62, #ff9966);
-    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    top: 210px; left: 30px;
-  }
-
-  /* 綠色底部 (大正三角形) */
-  #piece-green {
-    width: 120px; height: 104px;
-    background: linear-gradient(135deg, #a8e063, #56ab2f);
-    clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
-    top: 330px; left: 30px;
-  }
-
-  /* 橘黃色尾部 (不規則多邊形) */
-  #piece-orange {
-    width: 160px; height: 104px;
-    background: linear-gradient(135deg, #ffc371, #ff5f6d);
-    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 50% 100%, 0% 50%);
-    top: 450px; left: 30px;
-  }
-
   .instructions {
     color: #495057;
-    margin-top: 15px;
+    margin-top: 10px;
     font-weight: bold;
+    text-align: center;
+    font-size: 14px;
   }
 </style>
 </head>
 <body>
 
-<div class="instructions">滑鼠按住（或手指觸控）彩色形狀即可拖曳，試著將它們拼在一起吧！</div>
+<div class="instructions">已升級為精準網格！<br>拖曳具有內部三角形分割線的拼圖來完成挑戰</div>
 
 <div id="board">
-  <div id="silhouette-hint">拼圖區</div>
-  
-  <div id="piece-blue" class="piece"></div>
-  <div id="piece-yellow" class="piece"></div>
-  <div id="piece-red" class="piece"></div>
-  <div id="piece-green" class="piece"></div>
-  <div id="piece-orange" class="piece"></div>
+  <!-- 拼圖容器 -->
+  <div id="piece-blue" class="piece" style="top: 20px; left: 20px;"></div>
+  <div id="piece-yellow" class="piece" style="top: 120px; left: 20px;"></div>
+  <div id="piece-red" class="piece" style="top: 220px; left: 20px;"></div>
+  <div id="piece-green" class="piece" style="top: 350px; left: 20px;"></div>
+  <div id="piece-orange" class="piece" style="top: 480px; left: 20px;"></div>
 </div>
 
 <script>
+  // === SVG 三角形網格生成引擎 ===
+  const S = 50; // 三角形邊長
+  const H = S * 0.866025; // 三角形高 (S * √3 / 2)
+
+  // 根據圖片重建完美比例的拼圖資料 (c: 行, r: 列, t: 朝上或朝下)
+  const piecesDef = {
+    blue: {
+      color: 'url(#grad-blue)',
+      tris: [ {c:1,r:0,t:'up'}, {c:0,r:1,t:'up'}, {c:1,r:1,t:'down'}, {c:2,r:1,t:'up'} ]
+    },
+    yellow: {
+      color: 'url(#grad-yellow)',
+      tris: [ {c:0,r:0,t:'up'}, {c:1,r:0,t:'down'}, {c:2,r:0,t:'up'}, {c:3,r:0,t:'down'} ]
+    },
+    red: {
+      color: 'url(#grad-red)',
+      tris: [ {c:1,r:0,t:'down'}, {c:0,r:0,t:'up'}, {c:2,r:0,t:'up'}, {c:0,r:1,t:'down'}, {c:2,r:1,t:'down'}, {c:1,r:1,t:'up'} ]
+    },
+    green: {
+      color: 'url(#grad-green)',
+      tris: [ {c:0,r:0,t:'down'}, {c:1,r:0,t:'up'}, {c:2,r:0,t:'down'}, {c:1,r:1,t:'down'} ]
+    },
+    orange: {
+      color: 'url(#grad-orange)',
+      tris: [ {c:1,r:0,t:'up'}, {c:0,r:1,t:'up'}, {c:1,r:1,t:'down'}, {c:2,r:1,t:'up'}, {c:3,r:1,t:'down'}, {c:4,r:1,t:'up'} ]
+    }
+  };
+
+  // 計算每個小三角形的頂點座標
+  function getPoly(c, r, t) {
+    const x = c * (S/2);
+    const y = r * H;
+    if (t === 'up') return `${x+S/2},${y} ${x},${y+H} ${x+S},${y+H}`; // 尖端朝上
+    return `${x},${y} ${x+S},${y} ${x+S/2},${y+H}`; // 尖端朝下
+  }
+
+  // 漸層定義
+  const gradients = `
+    <defs>
+      <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#7dd3fc" /><stop offset="100%" stop-color="#0284c7" /></linearGradient>
+      <linearGradient id="grad-yellow" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fef08a" /><stop offset="100%" stop-color="#ca8a04" /></linearGradient>
+      <linearGradient id="grad-red" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fca5a5" /><stop offset="100%" stop-color="#dc2626" /></linearGradient>
+      <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#bbf7d0" /><stop offset="100%" stop-color="#16a34a" /></linearGradient>
+      <linearGradient id="grad-orange" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fde047" /><stop offset="100%" stop-color="#ea580c" /></linearGradient>
+    </defs>
+  `;
+
+  // 將資料渲染為 SVG 元素
+  Object.keys(piecesDef).forEach(id => {
+    const def = piecesDef[id];
+    let svgHtml = `<svg width="250" height="120" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.4)); overflow: visible;">${gradients}`;
+    def.tris.forEach(tri => {
+      svgHtml += `<polygon points="${getPoly(tri.c, tri.r, tri.t)}" fill="${def.color}" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>`;
+    });
+    svgHtml += `</svg>`;
+    document.getElementById('piece-' + id).innerHTML = svgHtml;
+  });
+
+  // === 拖曳互動邏輯 ===
   const pieces = document.querySelectorAll('.piece');
   const board = document.getElementById('board');
   let activePiece = null;
-  let offsetX = 0;
-  let offsetY = 0;
+  let offsetX = 0, offsetY = 0;
   let highestZIndex = 10;
 
   pieces.forEach(piece => {
-    // 綁定滑鼠事件
     piece.addEventListener('mousedown', dragStart);
-    // 綁定觸控事件
     piece.addEventListener('touchstart', dragStart, {passive: false});
   });
 
-  // 綁定全域移動與結束事件
   document.addEventListener('mousemove', drag);
   document.addEventListener('touchmove', drag, {passive: false});
   document.addEventListener('mouseup', dragEnd);
   document.addEventListener('touchend', dragEnd);
 
   function dragStart(e) {
-    if (e.target.classList.contains('piece')) {
-      activePiece = e.target;
+    let target = e.target.closest('.piece');
+    if (target) {
+      activePiece = target;
       highestZIndex++;
-      activePiece.style.zIndex = highestZIndex; // 將正在拖曳的元件移至最上層
+      activePiece.style.zIndex = highestZIndex;
 
-      // 判斷是滑鼠還是觸控
       const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
       const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-
       const rect = activePiece.getBoundingClientRect();
-      const boardRect = board.getBoundingClientRect();
-
-      // 計算游標與元件左上角的相對距離
+      
       offsetX = clientX - rect.left;
       offsetY = clientY - rect.top;
     }
@@ -159,14 +157,12 @@
 
   function drag(e) {
     if (!activePiece) return;
-    e.preventDefault(); // 防止手機端滑動螢幕
+    e.preventDefault(); 
 
     const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
     const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-
     const boardRect = board.getBoundingClientRect();
 
-    // 更新元件在 board 內的相對座標
     let newX = clientX - boardRect.left - offsetX;
     let newY = clientY - boardRect.top - offsetY;
 
